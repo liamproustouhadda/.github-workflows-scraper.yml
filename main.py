@@ -12,8 +12,8 @@ def send_discord_notification(title, url, budget, offers_count):
     payload = {
         "embeds": [
             {
-                "title": f"🚨 Nouveau projet (if True:  # Forcer l'envoi de tous les projets pour le test
-            ) : {title}",
+                "title": f"🚨 Nouveau projet (<if offers_count < 10:)
+          : {title}",
                 "url": url,
                 "color": 3066993,
                 "fields": [
