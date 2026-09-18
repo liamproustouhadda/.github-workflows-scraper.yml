@@ -57,8 +57,9 @@ def scrape_codeur():
             budget_elem = project.query_selector(".project-budget")
             budget = budget_elem.inner_text().strip() if budget_elem else "Non spécifié"
             
-            if offers_count < 10:
-                print(f"Projet retenu (<10 offres) : {title} ({offers_count} offres)")
+            # CONDITION DE TEST DIRECT (envoie tout)
+            if True:
+                print(f"Projet retenu : {title} ({offers_count} offres)")
                 send_discord_notification(title, url, budget, offers_count)
             else:
                 print(f"Ignoré ({offers_count} offres) : {title}")
