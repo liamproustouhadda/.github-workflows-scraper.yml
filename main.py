@@ -1,70 +1,46 @@
 import os
 import requests
-from playwright.sync_api import sync_playwright
+import xml.etree.ElementTree as ET
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
-def send_discord_notification(title, url, budget, offers_count):
+def send_discord(title, link, description):
     if not WEBHOOK_URL:
-        print("Erreur : URL Webhook Discord manquante dans les Secrets GitHub.")
+        print("Erreur : Secret DISCORD_WEBHOOK_URL non trouvé dans GitHub Secrets.")
         return
         
     payload = {
-        "embeds": [
-            {
-                "title": f"🚨 Nouveau projet (< 10 offres) : {title}",
-                "url": url,
-                "color": 3066993,
-                "fields": [
-                    {"name": "Budget", "value": budget or "Non spécifié", "inline": True},
-                    {"name": "Nombre d'offres", "value": str(offers_count), "inline": True}
-                ],
-                "footer": {"text": "Bot Codeur.com • GitHub Actions"}
-            }
-        ]
+        "embeds": [{
+            "title": f"🚨 Nouveau projet : {title}",
+            "url": link,
+            "description": description[:200] + "..." if len(description) > 200 else description,
+            "color": 3066993,
+            "footer": {"text": "Bot Codeur.com • Test RSS"}
+        }]
     }
-    try:
-        response = requests.post(WEBHOOK_URL, json=payload)
-        response.raise_for_status()
-        print(f"Notification Discord envoyée pour : {title}")
-    except Exception as e:
-        print(f"Erreur d'envoi Discord : {e}")
+    r = requests.post(WEBHOOK_URL, json=payload)
+    print(f"Statut Discord : {r.status_code}")
 
-def scrape_codeur():
-    print("Démarrage du scraping...")
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.goto("https://www.codeur.com/projets", timeout=60000)
-        
-        projects = page.query_selector_all(".project-list-item")
-        print(f"{len(projects)} projets trouvés sur la page.")
-        
-        for project in projects:
-            title_elem = project.query_selector(".project-title a")
-            if not title_elem:
-                continue
-                
-            title = title_elem.inner_text().strip()
-            url = "https://www.codeur.com" + title_elem.get_attribute("href")
-            
-            offers_elem = project.query_selector(".project-offers-count")
-            offers_text = offers_elem.inner_text().strip() if offers_elem else "0"
-            
-            # Extraction du nombre d'offres
-            offers_count = int(''.join(filter(str.isdigit, offers_text)) or 0)
-            
-            budget_elem = project.query_selector(".project-budget")
-            budget = budget_elem.inner_text().strip() if budget_elem else "Non spécifié"
-            
-            # CONDITION DE TEST DIRECT (envoie tout)
-            if True:
-                print(f"Projet retenu : {title} ({offers_count} offres)")
-                send_discord_notification(title, url, budget, offers_count)
-            else:
-                print(f"Ignoré ({offers_count} offres) : {title}")
-                
-        browser.close()
+def main():
+    print("Vérification des projets via le flux RSS...")
+    rss_url = "https://www.codeur.com/projets.rss"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    response = requests.get(rss_url, headers=headers)
+    if response.status_code != 200:
+        print(f"Erreur HTTP : {response.status_code}")
+        return
+
+    root = ET.fromstring(response.content)
+    items = root.findall("./channel/item")
+    print(f"{len(items)} projets trouvés.")
+
+    # Envoie les 3 derniers projets pour le test
+    for item in items[:3]:
+        title = item.find("title").text if item.find("title") is not None else "Sans titre"
+        link = item.find("link").text if item.find("link") is not None else ""
+        desc = item.find("description").text if item.find("description") is not None else ""
+        send_discord(title, link, desc)
 
 if __name__ == "__main__":
-    scrape_codeur()
+    main()
